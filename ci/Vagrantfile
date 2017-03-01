@@ -1,0 +1,47 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.define "concourse" do |d|
+    d.vm.provider "virtualbox" do |p|
+      p.cpus = 1
+      p.memory = 1024
+    end
+    d.vm.network "private_network", ip: "172.18.161.6"
+    d.vm.network "forwarded_port", guest: 8080, host: 10922
+
+    d.vm.box = "concourse/lite"
+    d.vm.box_version = "2.4.0"
+  end
+
+  config.vm.define "swift" do |d|
+    d.vm.provider "virtualbox" do |p|
+      p.cpus = 2
+      p.memory = 2048
+    end
+    d.vm.network "private_network", ip: "172.18.161.7"
+
+    d.vm.box = "ubuntu/xenial64"
+    d.vm.box_version = "20170117.0.0"
+
+    d.vm.provision "file", source: "swift-local.conf", destination: "local.conf"
+    d.vm.provision "shell", privileged: false, inline: <<-SHELL
+      sudo apt-get update
+      git clone -b stable/newton -- https://github.com/openstack-dev/devstack.git
+      mv local.conf devstack
+      cd devstack
+      ./stack.sh
+      cd -
+
+      sudo apt-get install -y libdigest-hmac-perl unzip
+      wget http://s3.amazonaws.com/doc/s3-example-code/s3-curl.zip
+      unzip s3-curl.zip
+      cd s3-curl
+      chmod +wx s3curl.pl
+      sed -i 's/s3.amazonaws.com/172.18.161.7/' s3curl.pl
+      cd -
+    SHELL
+
+  end
+
+end
